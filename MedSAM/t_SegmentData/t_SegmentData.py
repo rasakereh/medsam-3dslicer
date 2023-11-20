@@ -350,6 +350,36 @@ class t_SegmentDataLogic(ScriptedLoadableModuleLogic):
     def applySegmentation(self, serverUrl='http://127.0.0.1:5555'):
         segmentation_mask = self.inferSegmentation(serverUrl)
         self.showSegmentation(segmentation_mask)
+
+    def writeLog(self, message):
+        module_dir = os.path.dirname(__file__)
+        log_path = os.path.join(module_dir, 'slicer_manual_log.txt')
+        with open(log_path, 'a') as log_file:
+            log_file.write(message + '\n')
+
+    def getUserSelectedSliceIdx(self):
+        redSliceLogic = slicer.app.layoutManager().sliceWidget("Red").sliceLogic()
+        sliceOffset = redSliceLogic.GetSliceOffset()
+        self.writeLog(f"Slice offset: {sliceOffset}")
+
+        volumeNode = self.volume_node
+        self.writeLog(f"Volume Node ID: {volumeNode.GetID() if volumeNode else 'None'}")
+
+        point_Ras = [0, 0, sliceOffset, 1]
+        self.writeLog(f"Point RAS: {point_Ras}")
+
+        rasToIjkMatrix = vtk.vtkMatrix4x4()
+        volumeNode.GetRASToIJKMatrix(rasToIjkMatrix)
+        self.writeLog("RAS to IJK Matrix: ")
+        self.writeLog(rasToIjkMatrix)
+
+        point_Ijk = rasToIjkMatrix.MultiplyPoint(point_Ras)
+        self.writeLog(f"Point IJK: {point_Ijk}")
+
+        sliceIndex = int(round(point_Ijk[2]))
+        self.writeLog(f"Calculated slice index: {sliceIndex}")
+
+        return sliceIndex
     
     def get_bounding_box(self):
         roiNode = slicer.util.getNode("R") # multiple bounding box?
@@ -383,7 +413,8 @@ class t_SegmentDataLogic(ScriptedLoadableModuleLogic):
         z_min, z_max = min(ijk_points[0][2], ijk_points[1][2]), max(ijk_points[0][2], ijk_points[1][2])
         bbox = [x_min, y_min, x_max, y_max]
         zrange = [z_min, z_max]
-        slice_idx = int((zrange[0] + zrange[1]) / 2) # it is not accurate
+        # slice_idx = int((zrange[0] + zrange[1]) / 2) # it is not accurate
+        slice_idx = self.getUserSelectedSliceIdx()
 
         return slice_idx, bbox, zrange
 
